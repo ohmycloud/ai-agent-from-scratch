@@ -1,0 +1,47 @@
+use v6.d;
+use Test;
+use lib 'lib';
+use ScratchAgents::Types;
+
+plan 14;
+
+my $msg = Message.new(role => 'user', content => 'Hello');
+is $msg.type, 'message', 'Message type defaults to message';
+is $msg.role, 'user', 'Message role';
+is $msg.content, 'Hello', 'Message content';
+
+my %mh = $msg.to-hash;
+my $msg2 = Message.from-hash(%mh);
+is $msg2.role, 'user', 'Message from-hash role';
+is $msg2.content, 'Hello', 'Message from-hash content';
+ok $msg ~~ ContentItem, 'Message matches ContentItem';
+
+my $tc = ToolCall.new(
+    tool-call-id => 'call_1',
+    name         => 'calculator',
+    arguments    => { operator => 'add', first-number => 2, second-number => 3 },
+);
+my $tc2 = ToolCall.from-hash($tc.to-hash);
+is $tc2.tool-call-id, 'call_1', 'ToolCall round-trip id';
+is $tc2.arguments<operator>, 'add', 'ToolCall round-trip arguments';
+ok $tc ~~ ContentItem, 'ToolCall matches ContentItem';
+
+my $tr = ToolResult.new(
+    tool-call-id => 'call_1',
+    name         => 'calculator',
+    status       => 'success',
+    content      => [5],
+);
+my $tr2 = ToolResult.from-hash($tr.to-hash);
+is $tr2.status, 'success', 'ToolResult round-trip status';
+is $tr2.content[0], 5, 'ToolResult round-trip content';
+ok $tr ~~ ContentItem, 'ToolResult matches ContentItem';
+
+my $ev = Event.new(
+    execution-id => 'exec_1',
+    author       => 'user',
+    content      => [$msg, $tc, $tr],
+);
+my $ev2 = Event.from-hash($ev.to-hash);
+is $ev2.author, 'user', 'Event from-hash author';
+is $ev2.content.elems, 3, 'Event from-hash preserves content count';

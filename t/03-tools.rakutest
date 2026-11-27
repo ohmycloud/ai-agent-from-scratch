@@ -1,0 +1,53 @@
+use v6.d;
+use Test;
+use lib 'lib';
+use ScratchAgents::Context;
+use ScratchAgents::Tools::Base;
+use ScratchAgents::Tools::Helpers;
+use ScratchAgents::Tools::Calculator;
+use ScratchAgents::Tools::AgentTool;
+use ScratchAgents::Planning;
+
+plan 20;
+
+#| Add two numbers together.
+sub add-nums(Int :$a!, Int :$b = 10 --> Int) { $a + $b }
+
+my %schema = function-to-input-schema(&add-nums);
+is %schema<type>, 'object', 'Schema type is object';
+is %schema<properties><a><type>, 'integer', 'Int param mapped to integer';
+is %schema<properties><b><type>, 'integer', 'Optional Int param mapped to integer';
+is-deeply %schema<required>, ['a'], 'Only param without default is required';
+
+my %def = function-to-tool-definition(&add-nums);
+is %def<type>, 'function', 'Tool definition type is function';
+is %def<function><name>, 'add-nums', 'Tool definition captures sub name';
+is %def<function><description>, 'Add two numbers together.', 'Tool definition captures pod declarator doc';
+
+my $ft = tool(&add-nums);
+is $ft.name, 'add-nums', 'tool() sets name from sub';
+is $ft(ExecutionContext.new, a => 5), 15, 'FunctionTool executes with default parameter';
+is $ft(ExecutionContext.new, a => 5, b => 3), 8, 'FunctionTool executes with explicit named params';
+
+sub pos-fn(ExecutionContext $context, Str $msg --> Str) {
+    "{ $context.execution-id.substr(0, 0) }got:$msg";
+}
+my $pft = FunctionTool.new(func => &pos-fn);
+ok $pft.needs-context, 'Detects positional $context parameter';
+is $pft(ExecutionContext.new, msg => 'hello'), 'got:hello', 'Executes positional param + positional context';
+
+sub bad-sandbox(ExecutionContext :$context!, Str :$x!) { $x }
+dies-ok { tool(&bad-sandbox, :sandbox-executable) }, 'Cannot mark context-requiring tool as sandbox_executable';
+
+my $calc = tool(&calculator);
+is $calc(ExecutionContext.new, operator => 'add',      first-number => 6, second-number => 4), 10, 'calculator add';
+is $calc(ExecutionContext.new, operator => 'subtract', first-number => 6, second-number => 4), 2,  'calculator subtract';
+is $calc(ExecutionContext.new, operator => 'multiply', first-number => 6, second-number => 4), 24, 'calculator multiply';
+is $calc(ExecutionContext.new, operator => 'divide',   first-number => 6, second-number => 4), 1.5, 'calculator divide';
+dies-ok { $calc(ExecutionContext.new, operator => 'divide', first-number => 1, second-number => 0) }, 'calculator divide by zero dies';
+
+my $plan-out = create-tasks(ExecutionContext.new, tasks => [{ content => 'Find evidence', status => 'pending' },]);
+is $plan-out, '[ ] Find evidence', 'create-tasks accepts JSON hash arguments';
+
+my $refl-out = reflection(ExecutionContext.new, analysis => 'Need one more search', need-replan => True);
+like $refl-out, / 'REPLAN NEEDED' /, 'reflection records replan flag';

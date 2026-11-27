@@ -1,0 +1,119 @@
+use v6.d;
+use Test;
+use lib 'lib';
+use ScratchAgents::Types;
+use ScratchAgents::Context;
+use ScratchAgents::Llm;
+use ScratchAgents::Rag;
+use ScratchAgents::Callbacks;
+use ScratchAgents::Skills;
+use ScratchAgents::Memory::Session;
+use ScratchAgents::Memory::LongTerm;
+use ScratchAgents::Memory::ContextOptimizer;
+use ScratchAgents::Tools::Base;
+use ScratchAgents::Tools::MemoryTool;
+
+plan 22;
+
+# 1. Chunking & RAG
+dies-ok { fixed-length-chunking('abc', :chunk-size(1), :overlap(1)) }, 'Chunker rejects non-advancing window';
+is-deeply fixed-length-chunking('abcdef', 3, 1), ['abc', 'cde', 'ef'], 'Chunker handles positional chunk-size and overlap';
+
+is-approx cosine-similarity([1, 0], [1, 0]), 1.0, 'Identical vectors have similarity 1';
+is-approx cosine-similarity([1, 0], [0, 1]), 0.0, 'Orthogonal vectors have similarity 0';
+
+my &mock-embedder = sub ($texts) {
+    my @t = $texts ~~ Positional ?? @$texts !! [~$texts];
+    @t.map({ .contains('moon') ?? [1.0, 0.0] !! [0.0, 1.0] }).Array;
+};
+my @chunks = ['mars facts', 'moon distance'];
+my @embs   = &mock-embedder(@chunks);
+my @hits   = vector-search('moon', @chunks, @embs, :top-k(1), embedder => &mock-embedder);
+is @hits.elems, 1, 'vector-search returns top-k hits';
+is @hits[0]<chunk>, 'moon distance', 'vector-search picks most similar chunk';
+
+# 2. Callback search-compressor
+my $ctx = ExecutionContext.new;
+$ctx.add-event(Event.new(
+    execution-id => $ctx.execution-id,
+    author       => 'agent',
+    content      => [ToolCall.new(tool-call-id => 's1', name => 'search_web', arguments => { query => 'moon' })],
+));
+my $big-text = ('mars filler ' x 180) ~ 'moon perigee is 356500 km';
+my $comp-res = search-compressor(
+    $ctx,
+    ToolResult.new(tool-call-id => 's1', name => 'search_web', status => 'success', content => [$big-text]),
+    embedder => &mock-embedder,
+);
+ok $comp-res.defined, 'search-compressor compresses long results';
+like $comp-res.content[0], / 'moon perigee' /, 'search-compressor keeps relevant chunk';
+
+# 3. Session manager
+my $sm = InMemorySessionManager.new;
+my $s1 = $sm.get-or-create('sess-1', user-id => 'u1');
+is $s1.session-id, 'sess-1', 'Session created via get-or-create';
+dies-ok { $sm.create('sess-1') }, 'Creating duplicate session dies';
+
+# 4. LongTerm Memory (SQLite via DBIish) & MemoryTool
+class MockAskClient is LlmClient {
+    has Int $.call-num is rw = 0;
+    method ask(Str $prompt, :$response-format) {
+        $!call-num++;
+        if $prompt.contains('Analyze the following execution history') {
+            return TaskMemory.new(
+                task-summary => 'Find moon distance',
+                approach     => 'Web search for perigee',
+                final-answer => '356500 km',
+                is-correct   => True,
+            );
+        }
+        DuplicateCheckResult.new(decision => 'ADD', reason => 'New entry');
+    }
+}
+my $mem-llm = MockAskClient.new(model => 'mock');
+my $tmm = TaskMemoryManager.new(llm-client => $mem-llm, embedder => &mock-embedder);
+my $mctx = ExecutionContext.new;
+$mctx.add-event(Event.new(
+    execution-id => $mctx.execution-id,
+    author       => 'user',
+    content      => [Message.new(role => 'user', content => 'What is the moon distance?')],
+));
+$mctx.memory-manager = $tmm;
+
+my $mem-id = $tmm.save($mctx);
+ok $mem-id.defined && $mem-id.chars > 0, 'TaskMemoryManager saves record into SQLite';
+my @found = $tmm.search('moon', :top-k(3));
+is @found.elems, 1, 'TaskMemoryManager search returns saved record';
+is @found[0].final-answer, '356500 km', 'TaskMemoryManager returns deserialized TaskMemory';
+
+my $mtool = MemoryTool.new;
+my $mreq  = LlmRequest.new(contents => [Message.new(role => 'user', content => 'moon orbit')]);
+$mtool.process-llm-request($mctx, $mreq);
+ok $mreq.instructions.elems == 1, 'MemoryTool injects past experiences into LlmRequest';
+like $mreq.instructions[0], / 'PAST_EXPERIENCES' /, 'Injected instruction contains PAST_EXPERIENCES';
+
+# 5. ContextOptimizer
+my $byte-req = LlmRequest.new(contents => [Message.new(role => 'user', content => 'hi')]);
+is count-tokens($byte-req, encoder => { .encode('utf-8').list }), 6, 'count-tokens matches per-message overhead + UTF-8 byte count';
+
+my $sw-req = LlmRequest.new(contents => [
+    Message.new(role => 'user', content => 'root prompt'),
+    |(1..10).map({ Message.new(role => 'assistant', content => "msg $_") }),
+]);
+apply-sliding-window(ExecutionContext.new, $sw-req, :window-size(3));
+is $sw-req.contents.elems, 4, 'Sliding window keeps user message plus last 3 items';
+is $sw-req.contents[0].content, 'root prompt', 'Sliding window preserves first user message';
+
+my $cmp-req = LlmRequest.new(contents => [
+    ToolCall.new(tool-call-id => 'r1', name => 'read_file', arguments => { file_path => 'foo.txt' }),
+    ToolResult.new(tool-call-id => 'r1', name => 'read_file', status => 'success', content => ['x' x 5000]),
+]);
+apply-compaction(ExecutionContext.new, $cmp-req);
+like $cmp-req.contents[1].content[0], / 'File content from foo.txt' /, 'apply-compaction compresses read_file results';
+
+# 6. Skills
+my $fm = parse-frontmatter("---\nname: pdf-tool\ndescription: Read PDFs\n---\n# Guide");
+is $fm<name>, 'pdf-tool', 'parse-frontmatter extracts YAML name';
+my $prompt = generate-skills-prompt([SkillInfo.new(name => 'pdf-tool', description => 'Read PDFs', path => 'skills/pdf-tool'.IO)]);
+like $prompt, / '## Available Skills' /, 'generate-skills-prompt formats skill section';
+like $prompt, / '/home/user/skills/pdf-tool/SKILL.md' /, 'generate-skills-prompt includes SKILL.md path';

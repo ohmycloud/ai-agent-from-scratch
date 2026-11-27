@@ -1,0 +1,126 @@
+use v6.d;
+use Test;
+use lib 'lib';
+use ScratchAgents::Types;
+use ScratchAgents::Context;
+use ScratchAgents::Workflows::Sequential;
+use ScratchAgents::Workflows::Parallel;
+use ScratchAgents::Workflows::Loop;
+use ScratchAgents::Eval::Gaia;
+
+plan 17;
+
+class DummyWorker {
+    has Str $.name is required;
+    has Str $.out  = Str;
+
+    method run($user-input = Nil, ExecutionContext :$context, Bool :$verbose = False --> AgentResult) {
+        my $ctx = $context // ExecutionContext.new;
+        $ctx.add-event(Event.new(
+            execution-id => $ctx.execution-id,
+            author       => $!name,
+            content      => [Message.new(role => 'assistant', content => $!out // $!name)],
+        ));
+        AgentResult.new(output => $!out // $!name, context => $ctx);
+    }
+}
+
+# 1. SequentialWorkflow
+my $seq = SequentialWorkflow.new([
+    DummyWorker.new(name => 'step1', out => 'draft'),
+    DummyWorker.new(name => 'step2', out => 'polished'),
+]);
+my $seq-res = $seq.run('topic');
+is $seq-res.output, 'polished', 'SequentialWorkflow returns last agent output';
+is $seq-res.context.events.elems, 2, 'SequentialWorkflow accumulates events across agents';
+
+# 2. ParallelWorkflow isolation & merge (ported from test_regressions.py)
+class IsolatedBranchWorker {
+    has Str $.name is required;
+    method run($user-input = Nil, ExecutionContext :$context, Bool :$verbose = False --> AgentResult) {
+        die 'Expected fresh step 0' unless $context.current-step == 0 && !$context.final-result.defined;
+        $context.state<nested><owner> = $!name;
+        $context.add-event(Event.new(
+            execution-id => $context.execution-id,
+            author       => 'user',
+            content      => [Message.new(role => 'user', content => ~$user-input)],
+        ));
+        sleep 0.01;
+        die 'State raced between branches!' unless $context.state<nested><owner> eq $!name;
+        $context.add-event(Event.new(
+            execution-id => $context.execution-id,
+            author       => $!name,
+            content      => [Message.new(role => 'assistant', content => $!name)],
+        ));
+        AgentResult.new(output => $!name, context => $context);
+    }
+}
+my $seed = ExecutionContext.new(state => { nested => { owner => 'seed' } }, current-step => 9, final-result => 'previous');
+$seed.add-event(Event.new(execution-id => $seed.execution-id, author => 'user', content => [Message.new(role => 'user', content => 'old')]));
+
+my $par-res = ParallelWorkflow.new([
+    IsolatedBranchWorker.new(name => 'a'),
+    IsolatedBranchWorker.new(name => 'b'),
+]).run('new', context => $seed);
+
+is $seed.events.elems, 1, 'Seed events untouched';
+is $seed.state<nested><owner>, 'seed', 'Seed nested state untouched';
+is $par-res.context.events.elems, 4, 'Merged events deduplicate user event';
+is-deeply $par-res.context.events.map(*.author).Array, ['user', 'user', 'a', 'b'], 'Merged event order matches Python';
+is $par-res.output, "[a]\na\n\n[b]\nb", 'Parallel output combined properly';
+
+# 3. ParallelWorkflowIncomplete preserves partial/error branches
+class MixedWorker {
+    has Str $.name is required;
+    method run($user-input = Nil, ExecutionContext :$context, Bool :$verbose = False --> AgentResult) {
+        die 'provider unavailable' if $!name eq 'failed';
+        return AgentResult.new(output => Nil, context => $context, status => 'pending_confirmation', pending-tool-calls => ['approval'])
+            if $!name eq 'waiting';
+        AgentResult.new(output => $!name, context => $context, status => 'complete');
+    }
+}
+throws-like {
+    ParallelWorkflow.new([
+        MixedWorker.new(name => 'done'),
+        MixedWorker.new(name => 'waiting'),
+        MixedWorker.new(name => 'failed'),
+    ]).run('test');
+}, ParallelWorkflowIncomplete, message => / 'did not complete' /, 'Incomplete branches throw ParallelWorkflowIncomplete';
+
+try {
+    ParallelWorkflow.new([
+        MixedWorker.new(name => 'done'),
+        MixedWorker.new(name => 'waiting'),
+        MixedWorker.new(name => 'failed'),
+    ]).run('test');
+    CATCH {
+        when ParallelWorkflowIncomplete {
+            is-deeply .branch-results.map({ .value.status }).Array, ['complete', 'pending_confirmation', 'error'], 'Branch statuses preserved';
+            is .branch-errors.elems, 1, 'Branch error captured';
+            is .branch-errors[0].key, 'failed', 'Branch error attributed to failed worker';
+        }
+    }
+}
+
+# 4. LoopWorkflow
+my $counter = 0;
+class CountingWorker {
+    has Str $.name = 'counter';
+    method run($user-input = Nil, ExecutionContext :$context, Bool :$verbose = False --> AgentResult) {
+        $counter++;
+        AgentResult.new(output => "iter-$counter", context => $context);
+    }
+}
+my $loop-res = LoopWorkflow.new(
+    [CountingWorker.new],
+    stop-condition => sub ($res, $iter) { $iter >= 3 },
+    max-iterations => 10,
+).run('go');
+is $counter, 3, 'LoopWorkflow stops when stop-condition returns True';
+is $loop-res.output, 'iter-3', 'LoopWorkflow returns final iteration result';
+
+# 5. Eval::Gaia helpers
+is get-provider('anthropic/claude-3-5-sonnet'), 'anthropic', 'get-provider detects anthropic/';
+is get-provider('gpt-5.5'), 'openai', 'get-provider defaults to openai';
+ok is-correct('  Paris ', 'paris'), 'is-correct is case-insensitive and trims whitespace';
+ok !is-correct(Str, 'paris'), 'is-correct handles undefined prediction';

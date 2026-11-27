@@ -1,0 +1,53 @@
+{
+    "name":        "ScratchAgents",
+    "version":     "0.1.0",
+    "auth":        "zef:ohmycloudy",
+    "api":         "0",
+    "description": "Build an AI Agent from Scratch",
+    "license":     "Artistic-2.0",
+    "depends":     [
+        "JSON::Fast",
+        "Cro::HTTP",
+        "Env::Dotenv",
+        "YAMLish",
+        "UUID",
+        "MIME::Base64",
+        "DBIish",
+        "Tokenizers"
+    ],
+    "test-depends": [
+        "Test"
+    ],
+    "provides": {
+        "ScratchAgents":                       "lib/ScratchAgents.rakumod",
+        "ScratchAgents::Types":                "lib/ScratchAgents/Types.rakumod",
+        "ScratchAgents::Context":              "lib/ScratchAgents/Context.rakumod",
+        "ScratchAgents::Llm":                  "lib/ScratchAgents/Llm.rakumod",
+        "ScratchAgents::Agent":                "lib/ScratchAgents/Agent.rakumod",
+        "ScratchAgents::Utils":                "lib/ScratchAgents/Utils.rakumod",
+        "ScratchAgents::Rag":                  "lib/ScratchAgents/Rag.rakumod",
+        "ScratchAgents::Callbacks":            "lib/ScratchAgents/Callbacks.rakumod",
+        "ScratchAgents::Planning":             "lib/ScratchAgents/Planning.rakumod",
+        "ScratchAgents::Skills":               "lib/ScratchAgents/Skills.rakumod",
+        "ScratchAgents::Transfer":             "lib/ScratchAgents/Transfer.rakumod",
+        "ScratchAgents::Remote":               "lib/ScratchAgents/Remote.rakumod",
+        "ScratchAgents::A2AServer":            "lib/ScratchAgents/A2AServer.rakumod",
+        "ScratchAgents::Tools::Base":          "lib/ScratchAgents/Tools/Base.rakumod",
+        "ScratchAgents::Tools::Helpers":       "lib/ScratchAgents/Tools/Helpers.rakumod",
+        "ScratchAgents::Tools::Calculator":    "lib/ScratchAgents/Tools/Calculator.rakumod",
+        "ScratchAgents::Tools::Search":        "lib/ScratchAgents/Tools/Search.rakumod",
+        "ScratchAgents::Tools::FileTools":     "lib/ScratchAgents/Tools/FileTools.rakumod",
+        "ScratchAgents::Tools::CodeExecution": "lib/ScratchAgents/Tools/CodeExecution.rakumod",
+        "ScratchAgents::Tools::Mcp":           "lib/ScratchAgents/Tools/Mcp.rakumod",
+        "ScratchAgents::Tools::MemoryTool":    "lib/ScratchAgents/Tools/MemoryTool.rakumod",
+        "ScratchAgents::Tools::AgentTool":     "lib/ScratchAgents/Tools/AgentTool.rakumod",
+        "ScratchAgents::Memory::Session":      "lib/ScratchAgents/Memory/Session.rakumod",
+        "ScratchAgents::Memory::LongTerm":     "lib/ScratchAgents/Memory/LongTerm.rakumod",
+        "ScratchAgents::Memory::ContextOptimizer": "lib/ScratchAgents/Memory/ContextOptimizer.rakumod",
+        "ScratchAgents::Workflows::Sequential":"lib/ScratchAgents/Workflows/Sequential.rakumod",
+        "ScratchAgents::Workflows::Parallel":  "lib/ScratchAgents/Workflows/Parallel.rakumod",
+        "ScratchAgents::Workflows::Loop":      "lib/ScratchAgents/Workflows/Loop.rakumod",
+        "ScratchAgents::Eval::Gaia":           "lib/ScratchAgents/Eval/Gaia.rakumod",
+        "ScratchAgents::Eval::Prompts":        "lib/ScratchAgents/Eval/Prompts.rakumod"
+    }
+}

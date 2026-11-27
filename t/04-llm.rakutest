@@ -1,0 +1,134 @@
+use v6.d;
+use Test;
+use lib 'lib';
+use JSON::Fast;
+use ScratchAgents::Types;
+use ScratchAgents::Llm;
+use ScratchAgents::Tools::Base;
+
+plan 18;
+
+sub echo(Str :$text!) { $text }
+my $tool = tool(&echo);
+
+my $req = LlmRequest.new(
+    instructions => ['You are helpful.'],
+    contents     => [
+        Message.new(role => 'user', content => 'Hi'),
+        Message.new(role => 'assistant', content => 'Calling tool'),
+        ToolCall.new(tool-call-id => 'tc1', name => 'echo', arguments => { text => 'yo' }),
+        ToolResult.new(tool-call-id => 'tc1', name => 'echo', status => 'success', content => ['yo']),
+    ],
+    tools => [$tool],
+);
+
+$req.append-instructions('Be concise.');
+is $req.instructions.elems, 2, 'append-instructions appends system instruction';
+
+my @msgs = build-messages($req);
+is @msgs.elems, 5, 'build-messages builds system + user + assistant(with tool_calls) + tool';
+is @msgs[0]<role>, 'system', 'First message is system';
+is @msgs[1]<content>, 'Be concise.', 'Second system instruction preserved';
+is @msgs[2]<role>, 'user', 'User message converted';
+is @msgs[3]<role>, 'assistant', 'Assistant message precedes ToolCall';
+is @msgs[3]<tool_calls>[0]<id>, 'tc1', 'ToolCall attached onto preceding assistant message';
+is @msgs[4]<role>, 'tool', 'ToolResult converted to tool message';
+lives-ok { to-json(@msgs) }, 'build-messages output serializes cleanly to JSON without Blocks';
+
+# HTTP round-trip test using Cro::HTTP::Client against an ephemeral local socket
+{
+    my $received = '';
+    my $port = 18923 + ($*PID % 1000);
+    my $srv = IO::Socket::Async.listen('127.0.0.1', $port);
+    my $tap = $srv.tap(-> $conn {
+        $conn.Supply.tap(-> $chunk {
+            $received ~= $chunk;
+            if $received.contains("\r\n\r\n") && $received.contains('Please respond.') {
+                my $json = '{"choices":[{"message":{"content":"Mock reply"}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}';
+                $conn.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {$json.encode('utf-8').bytes}\r\nConnection: close\r\n\r\n$json").then({ $conn.close });
+            }
+        });
+    });
+    LEAVE { $tap.close }
+
+    my $client = LlmClient.new(
+        model    => 'gpt-test',
+        api-key  => 'sk-test',
+        base-url => "http://127.0.0.1:$port",
+    );
+    my $answer = $client.ask('Say hi');
+    is $answer, 'Mock reply', 'LlmClient.ask parses HTTP response cleanly';
+    ok $received.lc.contains("content-type: application/json\r\n"), 'Sends single Content-Type: application/json header';
+    unlike $received, / 'application/json,application/json' /, 'Does not duplicate Content-Type header';
+}
+
+# SSE (text/event-stream) fallback test for proxies that stream even when stream => False
+{
+    my $received = '';
+    my $port = 19923 + ($*PID % 1000);
+    my $srv = IO::Socket::Async.listen('127.0.0.1', $port);
+    my $tap = $srv.tap(-> $conn {
+        $conn.Supply.tap(-> $chunk {
+            $received ~= $chunk;
+            if $received.contains("\r\n\r\n") && $received.contains('Please respond.') {
+                my $sse = q:to/END/;
+                data: {"choices":[{"delta":{"content":"Hello "}}]}
+
+                data: {"choices":[{"delta":{"content":"from SSE!","tool_calls":[{"index":0,"id":"call_1","function":{"name":"calc","arguments":"{\"x\":"}}]}}]}
+
+                data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"42}"}}]}}],"usage":{"prompt_tokens":10,"completion_tokens":4}}
+
+                data: [DONE]
+                END
+                $conn.print("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {$sse.encode('utf-8').bytes}\r\nConnection: close\r\n\r\n$sse").then({ $conn.close });
+            }
+        });
+    });
+    LEAVE { $tap.close }
+
+    my $client = LlmClient.new(
+        model    => 'gpt-test',
+        api-key  => 'sk-test',
+        base-url => "http://127.0.0.1:$port",
+    );
+    my $resp = $client.generate(LlmRequest.new(
+        contents => [Message.new(role => 'user', content => 'Please respond.')],
+    ));
+    ok $received.contains('"stream":false'), 'Sends stream => false by default';
+    is $resp.content[0].content, 'Hello from SSE!', 'Reassembles SSE delta content chunks';
+    is $resp.content[1].name, 'calc', 'Reassembles SSE streamed tool call name';
+    is $resp.content[1].arguments<x>, 42, 'Reassembles SSE streamed tool call JSON arguments';
+}
+
+# Empty SSE response auto-retry with stream => True
+{
+    my Int $hits = 0;
+    my $port = 20923 + ($*PID % 1000);
+    my $srv = IO::Socket::Async.listen('127.0.0.1', $port);
+    my $tap = $srv.tap(-> $conn {
+        my $req-buf = '';
+        my Bool $replied = False;
+        $conn.Supply.tap(-> $chunk {
+            return if $replied;
+            $req-buf ~= $chunk;
+            if $req-buf.contains("\r\n\r\n") && $req-buf.contains('Please respond.') {
+                $replied = True;
+                $hits++;
+                my $sse = $req-buf.contains('"stream":true')
+                    ?? "data: \{\"choices\":[\{\"delta\":\{\"content\":\"Retried stream ok\"}}]}\n\ndata: [DONE]\n"
+                    !! "data: \{\"choices\":[],\"usage\":\{\"completion_tokens\":0}}\n\ndata: [DONE]\n";
+                $conn.print("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {$sse.encode('utf-8').bytes}\r\nConnection: close\r\n\r\n$sse").then({ $conn.close });
+            }
+        });
+    });
+    LEAVE { $tap.close }
+
+    my $client = LlmClient.new(
+        model    => 'gpt-test',
+        api-key  => 'sk-test',
+        base-url => "http://127.0.0.1:$port",
+    );
+    my $ans = $client.ask('Hi');
+    is $hits, 2, 'Retries with stream => true when non-stream request returns empty SSE';
+    is $ans, 'Retried stream ok', 'Returns reassembled content from stream retry';
+}

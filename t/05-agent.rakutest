@@ -1,0 +1,180 @@
+use v6.d;
+use Test;
+use lib 'lib';
+use ScratchAgents;
+use ScratchAgents::Tools::Base;
+use ScratchAgents::Tools::AgentTool;
+use ScratchAgents::Memory::Session;
+use ScratchAgents::Transfer;
+
+plan 20;
+
+class MockModel {
+    has Str $.model = 'offline-test';
+    has Str $.text  = 'done';
+    has Str $.error = Str;
+
+    method generate(LlmRequest $req --> LlmResponse) {
+        LlmResponse.new(
+            error-message => $!error,
+            content       => $!error.defined ?? [] !! [Message.new(role => 'assistant', content => $!text)],
+        );
+    }
+}
+
+# 1. Error handling
+throws-like {
+    Agent.new(MockModel.new(error => 'offline failure')).run('hi');
+}, Exception, message => / 'LLM request failed: offline failure' /, 'LLM error dies instead of reporting success';
+
+# 2. Failing tool recovery
+sub get_wikipedia_page(Str :$title!) {
+    die "Service unavailable for $title";
+}
+class RecoveryModel {
+    has Str $.model = 'offline-test';
+    has Int $!calls = 0;
+
+    method generate(LlmRequest $req --> LlmResponse) {
+        $!calls++;
+        if $!calls == 1 {
+            return LlmResponse.new(content => [
+                ToolCall.new(tool-call-id => 'failed-wiki', name => 'get_wikipedia_page', arguments => { title => 'Moon' }),
+            ]);
+        }
+        my $saw-err = so $req.contents.first({ $_ ~~ ToolResult && .status eq 'error' });
+        die 'Expected error ToolResult in contents' unless $saw-err;
+        LlmResponse.new(content => [Message.new(role => 'assistant', content => 'Use another source')]);
+    }
+}
+my $rec-res = Agent.new(RecoveryModel.new, tools => [tool(&get_wikipedia_page)]).run('Research the Moon');
+is $rec-res.output, 'Use another source', 'Failing tool is recorded and agent continues';
+
+# 3. Structured output
+class AnswerModel {
+    has Str $.answer is required;
+    method json-schema(--> Hash) {
+        { type => 'object', properties => { answer => { type => 'string' } }, required => ['answer'] }
+    }
+    method from-hash(%h --> AnswerModel) {
+        AnswerModel.new(answer => ~%h<answer>);
+    }
+}
+class StructuredModel {
+    has Str $.model = 'offline-test';
+    method generate(LlmRequest $req --> LlmResponse) {
+        LlmResponse.new(content => [
+            ToolCall.new(tool-call-id => 'fa1', name => 'final_answer', arguments => { output => { answer => '42' } }),
+        ]);
+    }
+}
+my $struct-res = Agent.new(StructuredModel.new, output-type => AnswerModel).run('Question');
+ok $struct-res.output ~~ AnswerModel, 'Structured output parses into output-type class';
+is $struct-res.output.answer, '42', 'Structured output field populated';
+
+# 4. Human-in-the-loop confirmation & resume
+my @actions;
+sub record-val(Str :$value!) { @actions.push($value); $value }
+my $rec-tool = tool(&record-val, name => 'record', :requires-confirmation);
+class ConfirmModel {
+    has Str $.model = 'offline-test';
+    method generate(LlmRequest $req --> LlmResponse) {
+        if $req.contents.first({ $_ ~~ ToolResult }) {
+            return LlmResponse.new(content => [Message.new(role => 'assistant', content => 'recorded')]);
+        }
+        LlmResponse.new(content => [
+            ToolCall.new(tool-call-id => 'confirm-1', name => 'record', arguments => { value => 'once' }),
+        ]);
+    }
+}
+my $sm = InMemorySessionManager.new;
+my $worker = Agent.new(ConfirmModel.new, tools => [$rec-tool], session-manager => $sm, name => 'worker');
+my $pending-res = $worker.run('record once', session-id => 's1');
+is $pending-res.status, 'pending_confirmation', 'Agent pauses for pending confirmation';
+is @actions.elems, 0, 'Tool did not execute before approval';
+is $pending-res.pending-tool-calls.elems, 1, 'PendingToolCall returned';
+
+my $conf = ToolConfirmation.new(tool-call-id => 'confirm-1', approved => True);
+my $resumed = $worker.run(session-id => 's1', tool-confirmations => [$conf]);
+is $resumed.status, 'complete', 'Resumed agent completes';
+is $resumed.output, 'recorded', 'Resumed agent produces final answer';
+is-deeply @actions, ['once'], 'Approved tool executed once';
+
+# 5. Sandbox cleanup & skill directory upload
+my $tmp = $*TMPDIR.child("scratch-test-{ $*PID }-{ (^10000).pick }");
+LEAVE {
+    if $tmp.defined && $tmp.e {
+        for $tmp.dir -> $d {
+            if $d.d { .unlink for $d.dir; $d.rmdir } else { $d.unlink }
+        }
+        $tmp.rmdir;
+    }
+}
+my $skill-dir = $tmp.child('example');
+$skill-dir.mkdir;
+$skill-dir.child('SKILL.md').spurt("---\nname: example\ndescription: Test skill\n---\nTest");
+$skill-dir.child('helper.py').spurt('print(1)');
+
+class MockFiles {
+    has %.uploads;
+    method write(Str $path, $data) { %!uploads{$path} = $data }
+}
+class MockSandbox {
+    has Bool $.closed is rw = False;
+    has MockFiles $.files .= new;
+    method run-code(Str $code) { Nil }
+    method kill() { $!closed = True }
+}
+my @sandboxes;
+my $sb-agent = Agent.new(
+    MockModel.new,
+    code-execution  => 'e2b',
+    skills-path     => ~$tmp,
+    sandbox-factory => sub { my $s = MockSandbox.new; @sandboxes.push($s); $s },
+);
+my $sb-res = $sb-agent.run('hi');
+ok !$sb-res.context.code-env.defined, 'Sandbox cleared from context after run';
+ok @sandboxes[0].closed, 'Sandbox closed in LEAVE block';
+is @sandboxes[0].files.uploads{'/home/user/skills/example/helper.py'}.decode('utf-8'), 'print(1)', 'Skill file uploaded to sandbox';
+
+# 6. Sandbox setup failure visibility
+throws-like {
+    Agent.new(
+        MockModel.new,
+        code-execution  => 'e2b',
+        sandbox-factory => sub { die 'offline setup failure' },
+    ).run('hi');
+}, Exception, message => / 'Failed to set up code execution environment' /, 'Sandbox setup failure surfaces clearly';
+
+# 7. Callbacks: before-llm, before-tool, after-tool
+my $cb-agent = Agent.new(
+    MockModel.new,
+    before-llm-callbacks => [sub ($ctx, $req) {
+        LlmResponse.new(content => [Message.new(role => 'assistant', content => 'intercepted')]);
+    }],
+);
+is $cb-agent.run('hi').output, 'intercepted', 'before-llm-callback can short-circuit LLM call';
+
+# 8. Transfer tool & multi-agent routing
+my $writer = Agent.new(MockModel.new(text => 'written by specialist'), name => 'writer', description => 'Writes text');
+my $transfer = create-transfer-tool([$writer]);
+my $t-ctx = ExecutionContext.new;
+is $transfer($t-ctx, agent_name => 'writer'), 'Transferring to writer...', 'Transfer tool routes to valid agent';
+is $t-ctx.transfer-to, 'writer', 'Transfer tool sets context.transfer-to';
+like $transfer($t-ctx, agent_name => 'writer'), / 'already requested' /, 'Transfer routes only once per turn';
+
+class RouterModel {
+    has Str $.model = 'offline-test';
+    method generate(LlmRequest $req --> LlmResponse) {
+        LlmResponse.new(content => [
+            ToolCall.new(tool-call-id => 'tr1', name => 'transfer_to_agent', arguments => { agent_name => 'writer' }),
+        ]);
+    }
+}
+my $root = Agent.new(RouterModel.new, sub-agents => [$writer], name => 'router');
+my $routed = $root.run('Write something');
+is $routed.output, 'written by specialist', 'Root agent transfers execution to sub-agent';
+
+# 9. AgentTool wrapping
+my $at = AgentTool.new(agent => $writer);
+is $at(ExecutionContext.new, request => 'draft'), 'written by specialist', 'AgentTool delegates to wrapped agent';

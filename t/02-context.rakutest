@@ -1,0 +1,43 @@
+use v6.d;
+use Test;
+use lib 'lib';
+use ScratchAgents::Types;
+use ScratchAgents::Context;
+
+plan 11;
+
+my $ctx = ExecutionContext.new(state => { nested => { owner => 'seed' } });
+ok $ctx.execution-id.chars > 0, 'ExecutionContext generates UUID';
+is $ctx.current-step, 0, 'Initial step is 0';
+
+$ctx.increment-step();
+is $ctx.current-step, 1, 'increment-step increments current-step';
+
+my $ev = Event.new(
+    execution-id => $ctx.execution-id,
+    author       => 'user',
+    content      => [Message.new(role => 'user', content => 'old')],
+);
+$ctx.add-event($ev);
+is $ctx.events.elems, 1, 'add-event appends event';
+
+my $cloned = $ctx.deep-clone;
+$cloned.state<nested><owner> = 'branch';
+$cloned.events.push(Event.new(execution-id => $cloned.execution-id, author => 'b', content => []));
+is $ctx.state<nested><owner>, 'seed', 'deep-clone isolates nested state hashes';
+is $ctx.events.elems, 1, 'deep-clone isolates events array';
+
+my $res = AgentResult.new(output => 'ok', context => $ctx);
+is $res.status, 'complete', 'AgentResult default status is complete';
+is $res.to-hash<output>, 'ok', 'AgentResult to-hash output';
+
+my $ptc = PendingToolCall.new(
+    tool-call => ToolCall.new(tool-call-id => 'c1', name => 'delete_file', arguments => { path => '/tmp/x' }),
+    confirmation-message => 'Confirm delete?',
+);
+my $ptc2 = PendingToolCall.from-hash($ptc.to-hash);
+is $ptc2.tool-call.name, 'delete_file', 'PendingToolCall round-trip tool name';
+is $ptc2.confirmation-message, 'Confirm delete?', 'PendingToolCall round-trip message';
+
+my $conf = ToolConfirmation.new(tool-call-id => 'c1', approved => True);
+ok $conf.approved, 'ToolConfirmation approved';
