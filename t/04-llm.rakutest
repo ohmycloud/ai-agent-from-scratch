@@ -109,7 +109,7 @@ lives-ok { to-json(@msgs) }, 'build-messages output serializes cleanly to JSON w
         my $req-buf = '';
         my Bool $replied = False;
         $conn.Supply.tap(-> $chunk {
-            return if $replied;
+            next if $replied;
             $req-buf ~= $chunk;
             if $req-buf.contains("\r\n\r\n") && $req-buf.contains('Please respond.') {
                 $replied = True;
