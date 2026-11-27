@@ -37,3 +37,24 @@ sub search-web(
         }
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Tools::Search - Tavily web search tool
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Tools::Base;
+use ScratchAgents::Tools::Search;
+
+my $search-tool = tool(&search-web);
+=end code
+
+=head1 DESCRIPTION
+
+Exports C<search-web(Str :$query!, Int :$max-results = 5, Str :$topic = 'general', Str :$time-range)>, which queries the Tavily Search REST API via C<Cro::HTTP::Client> using C<< $*ENV<TAVILY_API_KEY> >>.
+
+=end pod

@@ -64,3 +64,24 @@ class MemoryTool is BaseTool is export {
         );
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Tools::MemoryTool - Automatic long-term memory injection tool
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Tools::MemoryTool;
+
+my $tool = MemoryTool.new;
+$tool.process-llm-request($context, $llm-request);
+=end code
+
+=head1 DESCRIPTION
+
+C<MemoryTool> is a C<BaseTool> subclass with no LLM-facing C<tool-definition>. Instead, its C<.process-llm-request> hook queries C<$context.memory-manager> using the latest user message and appends a C<< <PAST_EXPERIENCES> >> block to the C<LlmRequest> instructions. Registered automatically by C<Agent> when C<memory-manager> is configured.
+
+=end pod

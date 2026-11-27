@@ -18,3 +18,23 @@ sub display-trace($context) is export {
         }
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Utils - Execution trace formatting utilities
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Utils;
+
+display-trace($result.context);
+=end code
+
+=head1 DESCRIPTION
+
+Exports C<display-trace($context)>, which prints a numbered, human-readable transcript of every C<Event> (messages, tool calls, and truncated tool results) recorded in an C<ExecutionContext>.
+
+=end pod

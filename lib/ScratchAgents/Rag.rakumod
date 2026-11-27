@@ -100,3 +100,30 @@ sub vector-search(
 
     @scored.sort({ -.<similarity> }).head($k).Array;
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Rag - Embeddings, fixed-length chunking, and vector search
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Rag;
+
+my @chunks = fixed-length-chunking($document, :chunk-size(500), :overlap(50));
+my @embs   = get-embeddings(@chunks);
+my @hits   = vector-search('lunar perigee', @chunks, @embs, :top-k(3));
+=end code
+
+=head1 DESCRIPTION
+
+Provides Retrieval-Augmented Generation (RAG) building blocks without external numerical libraries:
+
+=item C<< get-embeddings($texts, :$model, :$api-key, :$base-url --> Array) >> — Calls an OpenAI-compatible C</embeddings> endpoint via C<Cro::HTTP::Client>.
+=item C<< fixed-length-chunking(Str $text, :$chunk-size = 500, :$overlap = 50 --> Array) >> — Splits text into overlapping character windows (validates C<< chunk-size > 0 >> and C<< 0 <= overlap < chunk-size >>).
+=item C<< cosine-similarity(@a, @b --> Num) >> — Pure-Raku cosine similarity between two numeric vectors.
+=item C<< vector-search(Str $query, @chunks, @chunk-embeddings, :$top-k = 3, :&embedder --> Array) >> — Ranks chunks by cosine similarity to the query embedding.
+
+=end pod

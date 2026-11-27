@@ -306,3 +306,35 @@ class LlmClient is export {
         );
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Llm - OpenAI-compatible LLM client and message builder
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Llm;
+
+my $client = LlmClient.new(model => 'gpt-5.5');
+my $reply  = $client.ask('Explain ReAct in two sentences.');
+say $reply;
+=end code
+
+=head1 DESCRIPTION
+
+Implements HTTP communication with OpenAI-compatible Chat Completions endpoints using C<Cro::HTTP::Client> and C<JSON::Fast>.
+
+=head2 Classes
+
+=item C<LlmRequest> — Holds C<instructions>, C<contents>, C<tools>, C<tool-choice>, and C<model-id>. Provides C<.append-instructions>.
+=item C<LlmResponse> — Holds parsed C<content> items (C<Message> / C<ToolCall>), C<error-message>, and C<usage-metadata>.
+=item C<LlmClient> — Configurable via C<model>, C<api-key> (defaults to C<< $*ENV<OPENAI_API_KEY> >>), C<base-url> (defaults to C<< $*ENV<OPENAI_BASE_URL> >> or C<https://api.openai.com/v1>), and C<config>. Supports both standard JSON and SSE (C<text/event-stream>) responses, with automatic streaming retry for SSE-only gateways. Provides C<.generate($request)> and C<.ask($prompt, :$response-format)>.
+
+=head2 Subroutines
+
+=item C<< build-messages(LlmRequest $request --> Array) >> — Converts instructions and content items into OpenAI Chat Completions message hashes.
+
+=end pod

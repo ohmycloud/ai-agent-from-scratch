@@ -13,3 +13,25 @@ sub calculator(Str :$operator!, Num(Cool) :$first-number!, Num(Cool) :$second-nu
         default { die "Unknown operator: $operator" }
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Tools::Calculator - Basic arithmetic tool
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Tools::Base;
+use ScratchAgents::Tools::Calculator;
+
+my $calc = tool(&calculator);
+say $calc(ExecutionContext.new, operator => '*', first-number => 128, second-number => 42);
+=end code
+
+=head1 DESCRIPTION
+
+Exports C<< calculator(Str :$operator!, Num(Cool) :$first-number!, Num(Cool) :$second-number! --> Num) >>, supporting C<add>/C<+>, C<subtract>/C<->, C<multiply>/C<*>, and C<divide>/C</> (raising an exception on division by zero or unknown operators).
+
+=end pod

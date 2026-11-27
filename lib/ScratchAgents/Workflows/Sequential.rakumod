@@ -48,3 +48,25 @@ class SequentialWorkflow is Agent is export {
         $result;
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Workflows::Sequential - Sequential multi-agent pipeline workflow
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Workflows::Sequential;
+
+my $workflow = SequentialWorkflow.new([$researcher, $writer]);
+my $result   = $workflow.run('Write a summary of Raku concurrency.');
+say $result.output;
+=end code
+
+=head1 DESCRIPTION
+
+C<SequentialWorkflow> subclasses C<Agent> and runs an ordered list of agents one after another, resetting C<final-result> and C<current-step> before each stage while threading the shared C<ExecutionContext> forward.
+
+=end pod

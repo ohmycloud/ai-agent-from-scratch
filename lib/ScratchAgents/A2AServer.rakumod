@@ -37,3 +37,28 @@ class MathAgentExecutor is AgentExecutor is export {
         }
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::A2AServer - A2A server executor adapters
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::A2AServer;
+
+my $executor = MathAgentExecutor.new(agent => $agent);
+my @queue;
+$executor.execute({ message => { parts => [{ type => 'text', text => '6 * 7' },] } }, @queue);
+=end code
+
+=head1 DESCRIPTION
+
+Provides server-side adapters for exposing a C<ScratchAgents::Agent> over the A2A protocol:
+
+=item C<AgentExecutor> — Abstract base class defining C<method execute($context, $event-queue)>.
+=item C<MathAgentExecutor> — Concrete executor that extracts text from the incoming A2A message, invokes C<$!agent.run>, and pushes the resulting artifact onto a C<Channel> or C<Array> event queue.
+
+=end pod

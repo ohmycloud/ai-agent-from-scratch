@@ -78,3 +78,25 @@ class RemoteAgent is export {
         AgentResult.new(output => $output, context => $ctx);
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Remote - A2A (Agent-to-Agent) remote client
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Remote;
+
+my $remote = RemoteAgent.new(base-url => 'http://127.0.0.1:8080');
+my $result = $remote.run('Compute 6 * 7');
+say $result.output;
+=end code
+
+=head1 DESCRIPTION
+
+C<RemoteAgent> connects to an A2A-compatible HTTP agent service using C<Cro::HTTP::Client>. On construction it fetches C</.well-known/agent.json> to populate C<name> and C<description>; C<.run($user-input, :$context, :$verbose)> sends a JSON-RPC 2.0 C<tasks/send> request and extracts text parts from the returned artifacts.
+
+=end pod

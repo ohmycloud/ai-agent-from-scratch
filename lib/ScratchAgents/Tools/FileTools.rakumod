@@ -226,3 +226,29 @@ sub analyze-pdf(Str $file-path, Str $query --> Str) {
     my %result = from-json(await $resp.body-text);
     %result<choices>[0]<message><content>;
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Tools::FileTools - Local file, spreadsheet, archive, and multimodal media tools
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Tools::Base;
+use ScratchAgents::Tools::FileTools;
+
+my @tools = tool(&list-files), tool(&read-file), tool(&unzip-file), tool(&read-media-file);
+=end code
+
+=head1 DESCRIPTION
+
+Exports file-system and multimodal analysis subroutines usable as agent tools:
+
+=item C<< unzip-file(Str :$zip-path!, Str :$extract-to --> Str) >> — Extracts a ZIP archive and lists extracted entries.
+=item C<< list-files(Str :$path = '.' --> Str) >> — Lists visible directories and files in sorted order.
+=item C<< read-file(Str :$file-path!, Int :$start-line = 1, Int :$end-line = -1 --> Str) >> — Reads text files with line numbers, CSV files, and Excel C<.xlsx> workbooks (via C<Spreadsheet::XLSX>).
+=item C<< read-media-file(Str :$file-path!, Str :$query! --> Str) >> — Analyzes images, audio, and PDFs (using C<pdftotext>/C<pdftoppm> and OpenAI multimodal APIs via C<Cro::HTTP::Client>).
+
+=end pod

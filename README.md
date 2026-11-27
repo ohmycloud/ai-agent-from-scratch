@@ -45,6 +45,22 @@ for f in t/*.rakutest; do raku -Ilib "$f"; done
 ## Running Examples
 
 ```sh
-raku -Ilib examples/ch09-multi-agent.raku
-raku -Ilib examples/ch10-evaluation.raku
+# Offline / self-contained examples (no API key required)
+raku examples/ch04-structured-output.raku
+raku examples/ch05-mcp-tools.raku
+raku examples/ch05-rag-callbacks.raku
+raku examples/ch06-long-term-memory.raku
+raku examples/ch06-memory-hitl.raku
+raku examples/ch07-planning-files.raku
+raku examples/ch08-skills-sandbox.raku
+raku examples/ch09-multi-agent.raku
+raku examples/ch09-agent-transfer-and-tool.raku
+raku examples/ch09-a2a-server-client.raku
+raku examples/ch10-evaluation.raku
+
+# Live LLM examples (uses .env / OPENAI_API_KEY)
+raku examples/ch02-llm-basics.raku
+raku examples/ch03-04-react-agent.raku
+raku examples/ch05-mcp-tools.raku --live
+raku examples/ch04-structured-output.raku --live
 ```

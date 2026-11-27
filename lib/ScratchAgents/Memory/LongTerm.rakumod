@@ -253,3 +253,33 @@ class TaskMemoryManager is export {
         @scored.sort({ -.<similarity> }).head($top-k).map({ .<memory> }).Array;
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Memory::LongTerm - SQLite-backed long-term task memory with vector similarity search
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Llm;
+use ScratchAgents::Memory::LongTerm;
+
+my $manager = TaskMemoryManager.new(
+    llm-client => LlmClient.new(model => 'gpt-5.5'),
+    db-path    => 'task_memories.sqlite3',
+);
+
+my @similar = $manager.search('lunar perigee distance', :top-k(3));
+=end code
+
+=head1 DESCRIPTION
+
+Replaces ChromaDB with C<DBIish> (SQLite) plus pure-Raku cosine similarity from C<ScratchAgents::Rag>:
+
+=item C<TaskMemory> — Structured record of a completed task (C<task-summary>, C<approach>, C<final-answer>, C<is-correct>, C<error-analysis>).
+=item C<DuplicateCheckResult> — Structured LLM decision (C<ADD> or C<SKIP>) with rationale.
+=item C<TaskMemoryManager> — Extracts memories from C<ExecutionContext.events> via C<LlmClient.ask>, checks semantic duplicates, stores embeddings as JSON in SQLite (defaults to C<:memory:>), and retrieves top-K matches via C<.search>.
+
+=end pod

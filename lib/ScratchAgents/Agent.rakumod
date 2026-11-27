@@ -678,3 +678,48 @@ class Agent is export {
         }
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Agent - Core ReAct tool-calling Agent
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents;
+use ScratchAgents::Tools::Base;
+use ScratchAgents::Tools::Calculator;
+
+my $agent = Agent.new(
+    model        => LlmClient.new(model => 'gpt-5.5'),
+    tools        => [tool(&calculator)],
+    instructions => 'Solve math problems step by step.',
+    max-steps    => 10,
+);
+
+my $result = $agent.run('Compute 128 * 42', :verbose);
+say $result.output;
+=end code
+
+=head1 DESCRIPTION
+
+C<Agent> implements the think-act (ReAct) execution loop supporting:
+
+=item Tool registration (C<BaseTool> instances or raw Raku subroutines auto-wrapped into C<FunctionTool>).
+=item Structured output via C<output-type> (adds a required C<final_answer> tool).
+=item Callbacks: C<before-llm-callbacks>, C<before-tool-callbacks>, and C<after-tool-callbacks>.
+=item Human-in-the-loop pause/resume via C<requires-confirmation> and C<tool-confirmations>.
+=item Multi-turn persistence with C<session-manager> and long-term learning with C<memory-manager>.
+=item Code execution sandboxes (C<< code-execution => 'e2b' >>, optional C<sandbox-factory>) and C<skills-path> upload with automatic C<LEAVE> cleanup.
+=item Multi-agent delegation via C<sub-agents> and C<transfer_to_agent>.
+
+=head2 Key Methods
+
+=item C<< run($user-input?, :$context, :$session-id, :@tool-confirmations, :$verbose --> AgentResult) >>
+=item C<< step(ExecutionContext $context, :$verbose --> AgentResult) >>
+=item C<< think(LlmRequest $llm-request --> LlmResponse) >>
+=item C<< act(ExecutionContext $context, @tool-calls --> AgentResult) >>
+
+=end pod

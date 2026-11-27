@@ -117,3 +117,29 @@ class ParallelWorkflow is Agent is export {
         AgentResult.new(output => $combined, context => $merged);
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Workflows::Parallel - Concurrent multi-agent fan-out workflow
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Workflows::Parallel;
+
+my $workflow = ParallelWorkflow.new([$agent-a, $agent-b]);
+my $result   = $workflow.run('Analyze this topic from two perspectives.');
+say $result.output;
+=end code
+
+=head1 DESCRIPTION
+
+Executes multiple agents concurrently using Raku C<start> blocks and C<Promise.allof>:
+
+=item Each branch receives an isolated C<deep-clone> of the seed C<ExecutionContext> to prevent state/event races.
+=item When all branches complete, new events are merged (deduplicating the initial user event) and outputs are combined under C<[agent-name]> headers.
+=item C<ParallelWorkflowIncomplete> — Exception thrown if any branch returns C<pending_confirmation> or raises an error, preserving C<branch-results> and C<branch-errors> for inspection or manual resume.
+
+=end pod

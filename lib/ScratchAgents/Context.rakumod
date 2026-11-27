@@ -77,3 +77,35 @@ class ToolConfirmation is export {
     has      %.modified-arguments;
     has Str  $.reason              = Str;
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Context - Execution context, results, and human-in-the-loop models
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Context;
+use ScratchAgents::Types;
+
+my $ctx = ExecutionContext.new;
+$ctx.add-event(Event.new(
+    execution-id => $ctx.execution-id,
+    author       => 'user',
+    content      => [Message.new(role => 'user', content => 'Hi')],
+));
+my $isolated = $ctx.deep-clone;
+=end code
+
+=head1 DESCRIPTION
+
+Provides mutable execution state and result containers for agent runs:
+
+=item C<ExecutionContext> — Tracks C<execution-id>, C<events>, C<current-step>, C<state>, C<final-result>, session/memory managers, E2B C<code-env>, and multi-agent C<transfer-to>. Supports C<.add-event>, C<.increment-step>, and C<.deep-clone>.
+=item C<AgentResult> — Encapsulates C<output>, C<context>, C<status> (C<complete>, C<pending_confirmation>, C<error>), and C<pending-tool-calls>.
+=item C<PendingToolCall> — Captures a tool call awaiting user approval along with its C<confirmation-message>.
+=item C<ToolConfirmation> — Represents a user's approval/denial (and optional C<modified-arguments>) for resuming execution.
+
+=end pod

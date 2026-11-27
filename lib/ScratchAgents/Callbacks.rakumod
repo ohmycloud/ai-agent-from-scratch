@@ -67,3 +67,33 @@ sub search-compressor(
         content      => [$compressed],
     );
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Callbacks - Built-in tool approval and result compression callbacks
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents;
+use ScratchAgents::Callbacks;
+
+my $agent = Agent.new(
+    model                 => $llm,
+    tools                 => @tools,
+    before-tool-callbacks => [&approval-callback],
+    after-tool-callbacks  => [&search-compressor],
+);
+=end code
+
+=head1 DESCRIPTION
+
+Exports reusable callback functions for C<Agent>:
+
+=item C<@DANGEROUS-TOOLS> — List of tool names requiring interactive confirmation (e.g., C<delete_file>, C<send_email>, C<execute_sql>).
+=item C<approval-callback(ExecutionContext $context, ToolCall $tool-call)> — Prompts the user on stdin before executing dangerous tools.
+=item C<search-compressor(ExecutionContext $context, ToolResult $tool-result, :&embedder)> — Uses C<ScratchAgents::Rag> chunking and vector search to compress large C<search_web> outputs (> 2000 chars) down to the top-3 most relevant chunks.
+
+=end pod

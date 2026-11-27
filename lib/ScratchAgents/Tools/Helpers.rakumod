@@ -100,3 +100,31 @@ sub tool-execution(%tool-box, $tool-call --> Str) is export {
         }
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Tools::Helpers - Signature introspection and OpenAI tool schema helpers
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Tools::Helpers;
+
+sub add(Int :$a!, Int :$b = 1) { $a + $b }
+my %schema = function-to-input-schema(&add);
+my %def    = function-to-tool-definition(&add);
+=end code
+
+=head1 DESCRIPTION
+
+Provides Raku routine introspection and dynamic invocation helpers for LLM tool calling:
+
+=item C<< function-to-input-schema(&func --> Hash) >> — Converts a Raku sub's C<.signature.params> (types, optionality, defaults, and C<#|> doc comments) into JSON Schema.
+=item C<< format-tool-definition(Str $name, Str $description, %parameters --> Hash) >> — Wraps parameters in the OpenAI C<function> tool format.
+=item C<< function-to-tool-definition(&func --> Hash) >> — Builds a full OpenAI tool definition directly from a subroutine.
+=item C<invoke-with-kwargs(&func, %kwargs, :$context, :$pass-context)> — Invokes a Raku sub with a Hash of arguments, binding positional and named parameters cleanly.
+=item C<< tool-execution(%tool-box, $tool-call --> Str) >> — Executes a JSON tool call dictionary against a name-to-subroutine mapping.
+
+=end pod

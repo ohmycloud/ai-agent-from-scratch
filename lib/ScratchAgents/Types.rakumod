@@ -158,3 +158,38 @@ class Event is export {
         );
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Types - Core conversation and event data models
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Types;
+
+my $msg   = Message.new(role => 'user', content => 'Hello');
+my $call  = ToolCall.new(tool-call-id => 'tc_1', name => 'calculator', arguments => { operator => '+', first-number => 1, second-number => 2 });
+my $res   = ToolResult.new(tool-call-id => 'tc_1', name => 'calculator', status => 'success', content => [3]);
+my $event = Event.new(execution-id => 'exec_1', author => 'agent', content => [$msg, $call, $res]);
+=end code
+
+=head1 DESCRIPTION
+
+Defines the fundamental serializable value types shared across the framework:
+
+=head2 Classes & Subsets
+
+=item C<Message> — Role (C<system>, C<user>, C<assistant>) and text content, with C<.to-hash>, C<.from-hash>, and C<.deep-clone>.
+=item C<ToolCall> — Tool invocation request emitted by an LLM (C<tool-call-id>, C<name>, C<arguments>).
+=item C<ToolResult> — Tool execution outcome (C<status>: C<success> or C<error>, plus C<content> array).
+=item C<ContentItem> — Subset matching C<Message | ToolCall | ToolResult>.
+=item C<Event> — Timestamped, UUID-identified execution log entry authored by C<user> or an agent.
+
+=head2 Subroutines
+
+=item C<deep-copy($val)> — Recursively clones nested Hashes, Arrays, and objects implementing C<.deep-clone>.
+
+=end pod

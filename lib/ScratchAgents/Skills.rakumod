@@ -85,3 +85,31 @@ sub generate-skills-prompt(@skills, Str :$sandbox-path = '/home/user/skills' -->
 
     @lines.join("\n");
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Skills - Skill discovery and prompt generation
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Skills;
+
+my @skills = discover-skills('skills');
+my $prompt = generate-skills-prompt(@skills);
+say $prompt;
+=end code
+
+=head1 DESCRIPTION
+
+Discovers directory-based agent skills containing C<SKILL.md> files with YAML frontmatter (parsed via C<YAMLish>) and formats sandbox instructions for code-execution agents:
+
+=item C<SkillInfo> — Value class holding C<name>, C<description>, and C<path> (C<IO::Path>).
+=item C<< parse-frontmatter(Str $content --> Hash) >> — Extracts key/value metadata from C<---> delimited YAML frontmatter.
+=item C<< load-skill(IO::Path $skill-dir --> SkillInfo) >> — Loads a single skill directory if C<SKILL.md> defines C<name> and C<description>.
+=item C<< discover-skills($skills-path --> Array) >> — Scans subdirectories for valid skills.
+=item C<< generate-skills-prompt(@skills, :$sandbox-path = '/home/user/skills' --> Str) >> — Generates markdown instructions describing available skills in the sandbox.
+
+=end pod

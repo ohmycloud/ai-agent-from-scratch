@@ -56,3 +56,28 @@ class InMemorySessionManager is BaseSessionManager is export {
         Nil;
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Memory::Session - Multi-turn session state management
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Memory::Session;
+
+my $sm      = InMemorySessionManager.new;
+my $session = $sm.get-or-create('session-1', user-id => 'alice');
+=end code
+
+=head1 DESCRIPTION
+
+Defines session persistence abstractions for preserving C<events> and C<state> across multiple C<Agent.run> invocations:
+
+=item C<Session> — Holds C<session-id>, C<user-id>, C<events>, C<state>, C<created-at>, and C<updated-at>.
+=item C<BaseSessionManager> — Abstract base class with C<.create>, C<.get>, C<.save>, and C<.get-or-create>.
+=item C<InMemorySessionManager> — Hash-backed implementation suitable for development and testing.
+
+=end pod

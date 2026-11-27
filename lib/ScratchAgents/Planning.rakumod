@@ -130,3 +130,34 @@ multi sub reflection(--> FunctionTool) is export { $REFLECTION-TOOL }
 multi sub reflection(ExecutionContext $context, *%kwargs) is export {
     $REFLECTION-TOOL($context, |%kwargs);
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Planning - Planning and reflection tools for multi-step agents
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents;
+use ScratchAgents::Planning;
+
+my $agent = Agent.new(
+    model => $llm,
+    tools => [create-tasks, reflection],
+);
+
+# Direct invocation is also supported:
+say create-tasks(ExecutionContext.new, tasks => [{ content => 'Gather facts', status => 'pending' },]);
+=end code
+
+=head1 DESCRIPTION
+
+Exports planning primitives and pre-configured C<FunctionTool> instances:
+
+=item C<Task> — Represents a plan item with C<content> and C<status> (C<pending>, C<in_progress>, C<completed>), stringifying to markdown checkboxes.
+=item C<create-tasks> — Multi sub returning the C<create_tasks> C<FunctionTool> when called with 0 arguments, or executing it when given C<($context, :$tasks!)>.
+=item C<reflection> — Multi sub returning the C<reflection> C<FunctionTool> when called with 0 arguments, or executing it when given C<($context, :$analysis!, :$need-replan)>.
+
+=end pod

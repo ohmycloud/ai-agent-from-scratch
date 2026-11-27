@@ -55,3 +55,29 @@ You are an evaluation judge for AI agent responses.
 Provide fair, consistent, and detailed evaluations.
 Always explain your reasoning.
 END
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Eval::Prompts - LLM-as-a-judge evaluation prompt templates
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Eval::Prompts;
+
+say $EVALUATION-SYSTEM-PROMPT;
+say $ANSWER-RELEVANCY-PROMPT;
+=end code
+
+=head1 DESCRIPTION
+
+Exports reusable judge prompt constants for CH10 evaluation workflows:
+
+=item C<$ANSWER-RELEVANCY-PROMPT>
+=item C<$CITATION-RELIABILITY-PROMPT>
+=item C<$REQUIREMENT-COMPLIANCE-PROMPT>
+=item C<$EVALUATION-SYSTEM-PROMPT>
+
+=end pod

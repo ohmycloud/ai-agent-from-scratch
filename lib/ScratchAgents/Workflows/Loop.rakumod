@@ -58,3 +58,28 @@ class LoopWorkflow is Agent is export {
         $result;
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Workflows::Loop - Iterative multi-agent loop workflow
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Workflows::Loop;
+
+my $workflow = LoopWorkflow.new(
+    [$drafter, $reviewer],
+    stop-condition => sub ($res, $iter) { ($res.output // '').contains('APPROVED') },
+    max-iterations => 5,
+);
+my $result = $workflow.run('Draft a release note.');
+=end code
+
+=head1 DESCRIPTION
+
+C<LoopWorkflow> subclasses C<Agent> and executes its C<agents> repeatedly up to C<max-iterations>, checking C<&stop-condition($result, $iteration)> after each full pass and breaking early when it returns truthy.
+
+=end pod

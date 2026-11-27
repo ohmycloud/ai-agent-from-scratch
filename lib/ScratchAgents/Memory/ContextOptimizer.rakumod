@@ -249,3 +249,39 @@ class ContextOptimizer is export {
         Nil;
     }
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Memory::ContextOptimizer - Token counting, sliding window, compaction, and summarization
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents;
+use ScratchAgents::Memory::ContextOptimizer;
+
+my $optimizer = ContextOptimizer.new(
+    llm-client      => $llm,
+    token-threshold => 50000,
+);
+
+my $agent = Agent.new(
+    model                => $llm,
+    before-llm-callbacks => [$optimizer],
+);
+=end code
+
+=head1 DESCRIPTION
+
+Implements hierarchical context window management usable as C<before-llm-callbacks>:
+
+=item C<< count-tokens(LlmRequest $request, :$tokenizer, :&encoder --> Int) >> — Counts tokens using an optional C<Tokenizers> instance (HuggingFace/tiktoken Rust bindings), custom C<&encoder>, or UTF-8 byte heuristic.
+=item C<apply-sliding-window($context, $request, :$window-size = 20)> — Preserves through the first user message and trims older intermediate items.
+=item C<apply-compaction($context, $request)> — Replaces verbose C<read_file>, C<search_web>, and C<create_file> payloads with compact references.
+=item C<apply-summarization($context, $request, $llm-client, :$keep-recent = 5)> — Summarizes older history via LLM and appends it to C<instructions>.
+=item C<ContextOptimizer> — Callable class combining compaction and summarization when tokens exceed C<token-threshold>.
+=item C<create-optimizer-callback(&apply-optimization, :$threshold = 50000)> — Factory wrapping any optimization strategy as a callback.
+
+=end pod

@@ -97,3 +97,31 @@ sub tool(
         tool-definition               => $tool-definition // Hash,
     );
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Tools::Base - BaseTool, FunctionTool, and tool factory
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Tools::Base;
+
+#| Greet a user by name.
+sub greet(Str :$name! --> Str) { "Hello, $name!" }
+
+my $greet-tool = tool(&greet);
+say $greet-tool(ExecutionContext.new, name => 'Raku');
+=end code
+
+=head1 DESCRIPTION
+
+Defines the tool abstraction used by C<ScratchAgents::Agent>:
+
+=item C<BaseTool> — Abstract base class with C<name>, C<description>, C<tool-definition>, C<requires-confirmation>, C<confirmation-message-template>, C<.process-llm-request>, C<.execute>, and C<.CALL-ME>.
+=item C<FunctionTool> — Wraps any Raku subroutine, inspects its signature to auto-generate OpenAI tool definitions, injects C<$context> if declared, and dispatches both positional and named arguments.
+=item C<tool(&func, ...)> — Convenience factory returning a configured C<FunctionTool>.
+
+=end pod

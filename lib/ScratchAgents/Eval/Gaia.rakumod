@@ -190,3 +190,29 @@ sub run-experiment(@problems, @models, :@tools --> Hash) is export {
     }
     %results;
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Eval::Gaia - GAIA benchmark evaluation runner and scoring utilities
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Eval::Gaia;
+
+say is-correct(' 42 ', '42');
+my %results = run-experiment(@problems, ['gpt-5.5'], :@tools);
+=end code
+
+=head1 DESCRIPTION
+
+Implements GAIA benchmark evaluation with provider-level concurrency throttling:
+
+=item C<GaiaOutput> — Structured answer schema (C<is-solvable>, C<unsolvable-reason>, C<final-answer>).
+=item C<$GAIA-PROMPT> — Standard GAIA system instruction string.
+=item C<< get-provider(Str $model --> Str) >> and C<< is-correct($prediction, Str $answer --> Bool) >> — Provider detection and normalized exact-match scoring.
+=item C<solve-problem>, C<evaluate-gaia-single>, C<evaluate-gaia-agent-single>, and C<run-experiment> — Single-shot and full-agent concurrent benchmark runners backed by a channel-based semaphore.
+
+=end pod

@@ -64,3 +64,23 @@ sub create-transfer-tool(@target-agents --> FunctionTool) is export {
         tool-definition => %tool-def,
     );
 }
+
+=begin pod
+
+=head1 NAME
+
+ScratchAgents::Transfer - Multi-agent handoff tool factory
+
+=head1 SYNOPSIS
+
+=begin code :lang<raku>
+use ScratchAgents::Transfer;
+
+my $transfer-tool = create-transfer-tool([$writer-agent, $coder-agent]);
+=end code
+
+=head1 DESCRIPTION
+
+Exports C<< create-transfer-tool(@target-agents --> FunctionTool) >>, which builds a C<transfer_to_agent> tool whose JSON Schema constrains C<agent_name> to an C<enum> of the target agents' names. Executing the tool sets C<$context.transfer-to> at most once per turn so C<Agent.run> can hand control to the target agent.
+
+=end pod
